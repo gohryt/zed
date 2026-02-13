@@ -350,8 +350,9 @@ impl WaylandWindowState {
         // For layer shell windows anchored to opposite edges, the initial size is 0x0
         // and the renderer is created lazily in set_size_and_scale() when the compositor
         // provides the actual size via a configure event.
-        let width = options.bounds.size.width.0 as u32;
-        let height = options.bounds.size.height.0 as u32;
+        let width = options.bounds.size.width.0 as i32;
+        let height = options.bounds.size.height.0 as i32;
+
         let renderer = if width > 0 && height > 0 {
             Some(Self::create_renderer(&surface, gpu_context, width, height)?)
         } else {
@@ -409,8 +410,8 @@ impl WaylandWindowState {
     fn create_renderer(
         surface: &wl_surface::WlSurface,
         gpu_context: &WgpuContext,
-        width: u32,
-        height: u32,
+        width: i32,
+        height: i32,
     ) -> anyhow::Result<WgpuRenderer> {
         let backend = surface
             .backend()
@@ -424,8 +425,8 @@ impl WaylandWindowState {
 
         let config = WgpuSurfaceConfig {
             size: Size {
-                width: DevicePixels(width as i32),
-                height: DevicePixels(height as i32),
+                width: DevicePixels(width),
+                height: DevicePixels(height),
             },
             transparent: true,
         };
@@ -968,8 +969,8 @@ impl WaylandWindowStatePtr {
                 state.scale = scale;
             }
             let device_bounds = state.bounds.to_device_pixels(state.scale);
-            let width = device_bounds.size.width.0 as u32;
-            let height = device_bounds.size.height.0 as u32;
+            let width = device_bounds.size.width.0 as i32;
+            let height = device_bounds.size.height.0 as i32;
 
             // Create renderer lazily when we have a valid size (layer shell windows
             // start with 0x0 until compositor sends configure event)
