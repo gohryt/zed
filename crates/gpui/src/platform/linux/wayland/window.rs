@@ -344,11 +344,19 @@ impl WaylandWindowState {
         options: WindowParams,
         parent: Option<WaylandWindowStatePtr>,
     ) -> anyhow::Result<Self> {
-        // Renderer is created lazily in set_size_and_scale() when we receive
-        // the first configure event with a valid size. This handles both:
-        // - Layer shell windows with initial 0x0 size (anchored to opposite edges)
-        // - Regular windows that also receive their size via configure events
         let atlas = gpu_context.atlas.clone();
+
+        // Create renderer eagerly when the initial size is valid (e.g., XDG windows).
+        // For layer shell windows anchored to opposite edges, the initial size is 0x0
+        // and the renderer is created lazily in set_size_and_scale() when the compositor
+        // provides the actual size via a configure event.
+        let width = options.bounds.size.width.0 as u32;
+        let height = options.bounds.size.height.0 as u32;
+        let renderer = if width > 0 && height > 0 {
+            Some(Self::create_renderer(&surface, gpu_context, width, height)?)
+        } else {
+            None
+        };
 
         if let WaylandSurfaceState::Xdg(ref xdg_state) = surface_state {
             if let Some(title) = options.titlebar.and_then(|titlebar| titlebar.title) {
@@ -368,7 +376,7 @@ impl WaylandWindowState {
             globals,
             outputs: HashMap::default(),
             display: None,
-            renderer: None,
+            renderer,
             atlas,
             bounds: options.bounds,
             scale: 1.0,

@@ -2,12 +2,18 @@ use anyhow::Context as _;
 use std::sync::Arc;
 use util::ResultExt;
 
+use super::WgpuAtlas;
+
 pub struct WgpuContext {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     dual_source_blending: bool,
+    /// Shared atlas that can be used by windows before their renderer is initialized.
+    /// This is particularly useful for layer shell windows where the initial size is 0x0
+    /// and the renderer cannot be created until the compositor provides the actual size.
+    pub(crate) atlas: Arc<WgpuAtlas>,
 }
 
 impl WgpuContext {
@@ -63,12 +69,17 @@ impl WgpuContext {
         }))
         .map_err(|e| anyhow::anyhow!("Failed to create wgpu device: {e}"))?;
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+        let atlas = Arc::new(WgpuAtlas::new(Arc::clone(&device), Arc::clone(&queue)));
+
         Ok(Self {
             instance,
             adapter,
-            device: Arc::new(device),
-            queue: Arc::new(queue),
+            device,
+            queue,
             dual_source_blending: dual_source_blending_available,
+            atlas,
         })
     }
 
