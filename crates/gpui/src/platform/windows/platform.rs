@@ -469,14 +469,12 @@ impl Platform for WindowsPlatform {
 
     fn hide(&self) {}
 
-    // todo(windows)
     fn hide_other_apps(&self) {
-        unimplemented!()
+        log::warn!("hide_other_apps is not supported on Windows");
     }
 
-    // todo(windows)
     fn unhide_other_apps(&self) {
-        unimplemented!()
+        log::warn!("unhide_other_apps is not supported on Windows");
     }
 
     fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>> {
@@ -653,9 +651,21 @@ impl Platform for WindowsPlatform {
         Ok(std::env::current_exe()?)
     }
 
-    // todo(windows)
-    fn path_for_auxiliary_executable(&self, _name: &str) -> Result<PathBuf> {
-        anyhow::bail!("not yet implemented");
+    fn path_for_auxiliary_executable(&self, name: &str) -> Result<PathBuf> {
+        let exe_path = std::env::current_exe()?;
+        let exe_dir = exe_path
+            .parent()
+            .ok_or_else(|| anyhow!("unable to determine executable directory"))?;
+        let auxiliary_path = exe_dir.join(name);
+        if auxiliary_path.exists() {
+            Ok(auxiliary_path)
+        } else {
+            Err(anyhow!(
+                "auxiliary executable '{}' not found in {}",
+                name,
+                exe_dir.display()
+            ))
+        }
     }
 
     fn set_cursor_style(&self, style: CursorStyle) {
@@ -772,8 +782,25 @@ impl Platform for WindowsPlatform {
         })
     }
 
-    fn register_url_scheme(&self, _: &str) -> Task<anyhow::Result<()>> {
-        Task::ready(Err(anyhow!("register_url_scheme unimplemented")))
+    fn register_url_scheme(&self, scheme: &str) -> Task<anyhow::Result<()>> {
+        let scheme = scheme.to_string();
+        self.foreground_executor().spawn(async move {
+            let exe_path = std::env::current_exe()?;
+            let exe_path_str = exe_path
+                .to_str()
+                .ok_or_else(|| anyhow!("executable path is not valid UTF-8"))?;
+
+            let key_path = format!("Software\\Classes\\{}", scheme);
+            let key = windows_registry::CURRENT_USER.create(&key_path)?;
+            key.set_string("", &format!("URL:{} Protocol", scheme))?;
+            key.set_string("URL Protocol", "")?;
+
+            let command_key_path = format!("{}\\shell\\open\\command", key_path);
+            let command_key = windows_registry::CURRENT_USER.create(&command_key_path)?;
+            command_key.set_string("", &format!("\"{}\" \"%1\"", exe_path_str))?;
+
+            Ok(())
+        })
     }
 
     fn perform_dock_menu_action(&self, action: usize) {

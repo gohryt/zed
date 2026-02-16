@@ -529,10 +529,10 @@ impl rwh::HasWindowHandle for WindowsWindow {
     }
 }
 
-// todo(windows)
 impl rwh::HasDisplayHandle for WindowsWindow {
     fn display_handle(&self) -> std::result::Result<rwh::DisplayHandle<'_>, rwh::HandleError> {
-        unimplemented!()
+        let raw = rwh::RawDisplayHandle::Windows(rwh::WindowsDisplayHandle::new());
+        Ok(unsafe { rwh::DisplayHandle::borrow_raw(raw) })
     }
 }
 
